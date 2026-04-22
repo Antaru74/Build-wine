@@ -1,0 +1,40 @@
+name: Build Box64 for Termux
+
+on:
+  workflow_dispatch:  # Biar bisa dijalankan manual
+
+jobs:
+  build-termux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Android NDK
+      run: |
+        wget https://dl.google.com/android/repository/android-ndk-r26b-linux.zip
+        unzip android-ndk-r26b-linux.zip
+        echo "ANDROID_NDK=$PWD/android-ndk-r26b" >> $GITHUB_ENV
+
+    - name: Setup Termux Environment
+      run: |
+        # Setup library sysv-semaphore khas Termux (contoh)
+        wget https://packages.termux.org/apt/termux-main/pool/main/libandroid-sysv-semaphore_0.1_aarch64.deb
+        7z x libandroid-sysv-semaphore_0.1_aarch64.deb
+        tar -xf data.tar.xz
+        sudo cp -rf data /
+
+    - name: Build Box64 for Termux
+      run: |
+        mkdir build && cd build
+        cmake .. \
+          -DCMAKE_C_COMPILER=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang \
+          -DTERMUX=1 \
+          -DARM_DYNAREC=1 \
+          -DBAD_SIGNAL=1
+        make -j$(nproc)
+
+    - name: Upload binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: box64-termux
+        path: build/box64
