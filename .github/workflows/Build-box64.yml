@@ -15,19 +15,30 @@ jobs:
         unzip android-ndk-r26b-linux.zip
         echo "ANDROID_NDK=$PWD/android-ndk-r26b" >> $GITHUB_ENV
 
-    - name: Setup Termux Environment
+    - name: Setup Termux Environment (Cara Resmi)
       run: |
-        # Setup library sysv-semaphore khas Termux (contoh)
-        wget https://packages.termux.org/apt/termux-main/pool/main/libandroid-sysv-semaphore_0.1_aarch64.deb
+        sudo apt-get update
+        sudo apt-get install -y p7zip
+        
+        # Gunakan mirror resmi utermux.dev dengan nama file yang benar
+        wget https://mirrors.utermux.dev/termux/termux-main/pool/main/liba/libandroid-sysv-semaphore/libandroid-sysv-semaphore_0.1_aarch64.deb
+        
         7z x libandroid-sysv-semaphore_0.1_aarch64.deb
         tar -xf data.tar.xz
         sudo cp -rf data /
+        sudo chmod 755 -R /data
+        sudo chown -R $(whoami):$(whoami) /data
+        
+        echo "CFLAGS=-L/data/data/com.termux/files/usr/lib" >> $GITHUB_ENV
+        echo "IS_TERMUX=1" >> $GITHUB_ENV
 
     - name: Build Box64 for Termux
       run: |
-        mkdir build && cd build
+        mkdir -p build
+        cd build
         cmake .. \
           -DCMAKE_C_COMPILER=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang \
+          -DCMAKE_CXX_COMPILER=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android31-clang++ \
           -DTERMUX=1 \
           -DARM_DYNAREC=1 \
           -DBAD_SIGNAL=1
