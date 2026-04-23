@@ -46,9 +46,9 @@ jobs:
           --enable-win64 \
           --enable-ntsync \
           --disable-tests \
-          --with-mingw=clang \
-          --enable-archs=i386,aarch64
-
+          --without-mingw \
+          --host=aarch64-linux-gnu
+          
     - name: Build Wine
       run: |
         cd wine/build
