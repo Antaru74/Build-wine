@@ -7,28 +7,18 @@ jobs:
   build:
     runs-on: ubuntu-22.04
 
+    env:
+      PREFIX: /data/data/com.termux/files/usr
+
     steps:
-    - name: Update system
+    - name: Install dependencies
       run: |
         sudo apt update
         sudo apt install -y \
-          build-essential \
-          clang \
-          llvm \
-          lld \
-          git \
-          wget \
-          curl \
-          autoconf \
-          automake \
-          libtool \
-          pkg-config \
-          flex \
-          bison \
-          zip \
-          unzip \
-          python3 \
-          mingw-w64
+          build-essential clang llvm lld \
+          git wget curl autoconf automake libtool \
+          pkg-config flex bison zip unzip python3 \
+          mingw-w64 zstd
 
     - name: Clone Wine 11
       run: |
@@ -42,15 +32,17 @@ jobs:
         tar -xf llvm-mingw-*.tar.xz
         echo "$(pwd)/llvm-mingw-*/bin" >> $GITHUB_PATH
 
-    - name: Configure Wine (Termux style)
+    - name: Configure Wine
       run: |
         cd wine
         mkdir build && cd build
 
         CC=clang \
         CXX=clang++ \
+        CFLAGS="-O2 -pipe" \
+        CXXFLAGS="-O2 -pipe" \
         ../configure \
-          --prefix=/data/data/com.termux/files/usr/opt/wine-ntsync \
+          --prefix=$PREFIX/opt/wine-ntsync \
           --enable-win64 \
           --enable-ntsync \
           --disable-tests \
@@ -62,30 +54,46 @@ jobs:
         cd wine/build
         make -j$(nproc)
 
-    - name: Install to staging dir
+    - name: Install to staging
       run: |
         cd wine/build
         make install DESTDIR=$PWD/pkg
 
-    - name: Create .deb package
+    - name: Cleanup (reduce size)
+      run: |
+        find wine/build/pkg -name "*.a" -delete
+        find wine/build/pkg -name "*.la" -delete
+
+    - name: Prepare .deb structure
       run: |
         mkdir -p deb/DEBIAN
-        mkdir -p deb/data/data/com.termux/files/usr/
+        mkdir -p deb/data/data/com.termux/files/usr
 
-        cp -r wine/build/pkg/data/data/com.termux/files/usr/* deb/data/data/com.termux/files/usr/
+        cp -r wine/build/pkg/data/data/com.termux/files/usr/* \
+          deb/data/data/com.termux/files/usr/
 
+    - name: Create control file
+      run: |
         cat <<EOF > deb/DEBIAN/control
         Package: wine-ntsync
         Version: 11.0
         Architecture: aarch64
         Maintainer: you
-        Description: Wine 11 with ntsync for Termux
+        Depends: libc++, libx11, libxcb, libxshmfence, libwayland, libdrm, zlib, zstd
+        Description: Wine 11 with ntsync support for Termux
         EOF
 
-        dpkg-deb --build deb wine-ntsync.deb
+    - name: Build .deb (FIXED XZ)
+      run: |
+        dpkg-deb -Zxz -z9 --build deb wine-ntsync.deb
+
+    - name: Verify package
+      run: |
+        dpkg-deb -I wine-ntsync.deb
+        dpkg-deb -c wine-ntsync.deb | head
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: wine-ntsync
+        name: wine-ntsync-deb
         path: wine-ntsync.deb
